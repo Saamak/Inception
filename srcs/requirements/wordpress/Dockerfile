@@ -1,38 +1,30 @@
+# srcs/requirements/wordpress/Dockerfile
 FROM debian:bullseye
 
-# Mise à jour et installation des dépendances
-RUN apt-get update && apt-get upgrade -y && apt-get -y install wget
-
-# Installer PHP 7.4, l'extension MySQL et le client MariaDB
-RUN apt-get install -y \
+RUN apt-get update -y && \
+    apt-get upgrade -y && \
+    apt-get install -y \
     php7.4-fpm \
-    php7.4-mysql \
+    php7.4-mysqli \
     mariadb-client \
-    nginx \
-    curl
+    curl \
+    wget && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm -rf /var/www/wordpress/*
 
-# Télécharger et extraire WordPress
-RUN wget https://fr.wordpress.org/wordpress-6.6-fr_FR.tar.gz -P /var/www
-RUN wget https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
-RUN cd /var/www && tar -xzf wordpress-6.6-fr_FR.tar.gz && rm wordpress-6.6-fr_FR.tar.gz
+WORKDIR /var/www/wordpress
 
-# Modifier les permissions des fichiers WordPress
-RUN chown -R www-data:www-data /var/www/wordpress
-RUN chmod +x wp-cli.phar
-RUN mv wp-cli.phar /usr/local/bin/wp
+# Copy configs first
+COPY conf/auto_config.sh /usr/local/bin/
+COPY conf/www.conf /etc/php/7.4/fpm/pool.d/
 
-# Copier le fichier de configuration Nginx
-COPY conf/www.conf /etc/php/7.4/fpm/pool.d/www.conf
+RUN chmod +x /usr/local/bin/auto_config.sh && \
+    mkdir -p /run/php && \
+    chown -R www-data:www-data /run/php
 
-COPY auto_config.sh /etc/tools/auto_config.sh
-# RUN chmod +x /etc/tools/auto_config.sh
-RUN chmod a+x /etc/tools/auto_config.sh
+# Install WP-CLI
+RUN wget https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && \
+    chmod +x wp-cli.phar && \
+    mv wp-cli.phar /usr/local/bin/wp
 
-# Exposer les ports nécessaires pour HTTP (80) et PHP-FPM (9000)
-EXPOSE 80 9000
-
-# Lancer les services PHP-FPM et Nginx
-CMD ["/etc/tools/auto_config.sh"]
-
-
-
+ENTRYPOINT ["/bin/bash", "/usr/local/bin/auto_config.sh"]
